@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -13,7 +13,12 @@ from app.schemas import (
     PaymentResponse,
     ErrorDetail,
 )
-from app.services.payment import create_payment_order, complete_payment, PaymentError
+from app.services.payment import (
+    create_payment_order,
+    complete_payment,
+    send_payment_callback,
+    PaymentError,
+)
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 page_router = APIRouter(prefix="", tags=["payment_pages"])
@@ -55,10 +60,11 @@ def payment_callback(data: PaymentCallback, db: Session = Depends(get_db)):
             record = db.query(PaymentRecord).filter(
                 PaymentRecord.order_no == data.order_no
             ).first()
-            if record:
-                record.status = "failed"
-                db.commit()
-                db.refresh(record)
+            if not record:
+                raise PaymentError("支付订单不存在")
+            record.status = "failed"
+            db.commit()
+            db.refresh(record)
     except PaymentError as e:
         raise HTTPException(
             status_code=400,
@@ -71,7 +77,10 @@ def payment_callback(data: PaymentCallback, db: Session = Depends(get_db)):
 def checkout_page(order_no: str, request: Request, db: Session = Depends(get_db)):
     record = db.query(PaymentRecord).filter(PaymentRecord.order_no == order_no).first()
     if not record:
-        raise HTTPException(status_code=404, detail="支付订单不存在")
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "PAYMENT_NOT_FOUND", "message": "支付订单不存在"},
+        )
     policy = record.policy
     return templates.TemplateResponse(
         "checkout.html",
@@ -86,12 +95,16 @@ def checkout_page(order_no: str, request: Request, db: Session = Depends(get_db)
 
 
 @page_router.post("/payment/{order_no}/confirm", include_in_schema=False)
-def confirm_payment(order_no: str, db: Session = Depends(get_db)):
+def confirm_payment(order_no: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """User clicks 'confirm payment' on checkout page."""
     try:
         record = complete_payment(db, order_no)
     except PaymentError as e:
-        raise HTTPException(status_code=400, detail=e.message)
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "PAYMENT_ERROR", "message": e.message},
+        )
 
+    background_tasks.add_task(send_payment_callback, record)
     redirect_url = f"{record.callback_url}?order_no={record.order_no}&status=success"
     return RedirectResponse(url=redirect_url)

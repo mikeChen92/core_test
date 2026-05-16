@@ -1,9 +1,12 @@
 import datetime
+import logging
 import httpx
 
 from sqlalchemy.orm import Session
 
 from app.models import Policy, PaymentRecord
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentError(Exception):
@@ -60,14 +63,11 @@ def complete_payment(db: Session, order_no: str) -> PaymentRecord:
     db.commit()
     db.refresh(record)
 
-    # Notify frontend callback
-    _send_callback(record)
-
     return record
 
 
-def _send_callback(record: PaymentRecord) -> None:
-    """Send payment success notification to the frontend callback URL (fire-and-forget)."""
+def send_payment_callback(record: PaymentRecord) -> None:
+    """Send payment success notification (call via BackgroundTasks)."""
     try:
         payload = {
             "order_no": record.order_no,
@@ -76,6 +76,6 @@ def _send_callback(record: PaymentRecord) -> None:
             "status": "success",
             "paid_at": record.paid_at.isoformat() if record.paid_at else None,
         }
-        httpx.post(record.callback_url, json=payload, timeout=10.0)
-    except Exception:
-        pass  # fire-and-forget, do not block payment completion
+        httpx.post(record.callback_url, json=payload, timeout=5.0)
+    except Exception as e:
+        logger.warning("Payment callback failed for %s: %s", record.order_no, e)

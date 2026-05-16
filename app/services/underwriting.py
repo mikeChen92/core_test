@@ -16,7 +16,7 @@ def assess_risk(db: Session, data: UnderwritingCreate) -> UnderwritingRecord:
         raise UnderwritingError("产品不存在")
 
     if data.insured_age < 18 or data.insured_age > 65:
-        raise UnderwritingError(f"被保人年龄 {data.insured_age} 不在承保范围（18-65周岁）")
+        _save_rejected(db, data, f"被保人年龄 {data.insured_age} 不在承保范围（18-65周岁）")
 
     existing_rejected = (
         db.query(UnderwritingRecord)
@@ -27,7 +27,7 @@ def assess_risk(db: Session, data: UnderwritingCreate) -> UnderwritingRecord:
         .first()
     )
     if existing_rejected:
-        raise UnderwritingError(f"被保人 {data.insured_name} 存在未结清的拒保记录")
+        _save_rejected(db, data, f"被保人 {data.insured_name} 存在未结清的拒保记录")
 
     record = UnderwritingRecord(
         product_id=data.product_id,
@@ -42,3 +42,21 @@ def assess_risk(db: Session, data: UnderwritingCreate) -> UnderwritingRecord:
     db.commit()
     db.refresh(record)
     return record
+
+
+def _save_rejected(db: Session, data: UnderwritingCreate, reason: str) -> None:
+    """Save a rejected underwriting record and raise an error."""
+    record = UnderwritingRecord(
+        product_id=data.product_id,
+        applicant_name=data.applicant_name,
+        applicant_id_no=data.applicant_id_no,
+        insured_name=data.insured_name,
+        insured_id_no=data.insured_id_no,
+        insured_age=data.insured_age,
+        status="rejected",
+        reject_reason=reason,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    raise UnderwritingError(reason)

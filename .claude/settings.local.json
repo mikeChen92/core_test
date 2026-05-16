@@ -6,7 +6,9 @@
       "Bash(git *)",
       "Bash(python3 *)",
       "Bash(pip install *)",
-      "Bash(/Users/mike/ClaudeProjects/projects/core_test/venv/bin/pip install *)"
+      "Bash(/Users/mike/ClaudeProjects/projects/core_test/venv/bin/pip install *)",
+      "Bash(python -m pip install -r requirements.txt)",
+      "Bash(./venv/bin/python -m pip list)"
     ]
   }
 }

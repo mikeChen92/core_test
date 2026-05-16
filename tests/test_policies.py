@@ -58,3 +58,9 @@ def test_list_policies(client, sample_product):
 def test_get_policy_not_found(client):
     resp = client.get("/api/policies/999")
     assert resp.status_code == 404
+
+
+def test_create_policy_nonexistent_underwriting(client):
+    resp = client.post("/api/policies", json={"underwriting_id": 999})
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "POLICY_ERROR"
