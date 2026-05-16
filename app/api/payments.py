@@ -16,6 +16,7 @@ from app.schemas import (
 from app.services.payment import create_payment_order, complete_payment, PaymentError
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
+page_router = APIRouter(prefix="", tags=["payment_pages"])
 
 templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 templates = Jinja2Templates(directory=templates_dir)
@@ -66,7 +67,7 @@ def payment_callback(data: PaymentCallback, db: Session = Depends(get_db)):
     return record
 
 
-@router.get("/payment/{order_no}", response_class=HTMLResponse, include_in_schema=False)
+@page_router.get("/payment/{order_no}", response_class=HTMLResponse, include_in_schema=False)
 def checkout_page(order_no: str, request: Request, db: Session = Depends(get_db)):
     record = db.query(PaymentRecord).filter(PaymentRecord.order_no == order_no).first()
     if not record:
@@ -84,7 +85,7 @@ def checkout_page(order_no: str, request: Request, db: Session = Depends(get_db)
     )
 
 
-@router.post("/payment/{order_no}/confirm", include_in_schema=False)
+@page_router.post("/payment/{order_no}/confirm", include_in_schema=False)
 def confirm_payment(order_no: str, db: Session = Depends(get_db)):
     """User clicks 'confirm payment' on checkout page."""
     try:
