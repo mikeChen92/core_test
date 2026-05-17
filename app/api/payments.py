@@ -30,7 +30,7 @@ templates = Jinja2Templates(directory=templates_dir)
 @router.post("/create", response_model=PaymentCreateResponse)
 def create_payment(data: PaymentCreate, db: Session = Depends(get_db)):
     try:
-        record = create_payment_order(db, data.policy_id, data.callback_url)
+        record = create_payment_order(db, data.underwriting_id, data.callback_url)
     except PaymentError as e:
         raise HTTPException(
             status_code=400,
@@ -81,7 +81,7 @@ def checkout_page(order_no: str, request: Request, db: Session = Depends(get_db)
             status_code=404,
             detail={"code": "PAYMENT_NOT_FOUND", "message": "支付订单不存在"},
         )
-    policy = record.policy
+    policy = record.underwriting.policy
     return templates.TemplateResponse(
         "checkout.html",
         {

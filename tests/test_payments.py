@@ -1,5 +1,5 @@
 def test_create_payment(client, sample_product):
-    # Full flow: underwriting -> policy -> payment
+    # Full flow: underwriting -> payment
     uw = client.post("/api/underwriting", json={
         "product_id": sample_product.id,
         "applicant_name": "张三",
@@ -8,10 +8,9 @@ def test_create_payment(client, sample_product):
         "insured_id_no": "110101199505052345",
         "insured_age": 30,
     }).json()
-    policy = client.post("/api/policies", json={"underwriting_id": uw["id"]}).json()
 
     resp = client.post("/api/payments/create", json={
-        "policy_id": policy["id"],
+        "underwriting_id": uw["id"],
         "callback_url": "http://example.com/callback",
     })
     assert resp.status_code == 200
@@ -28,15 +27,14 @@ def test_confirm_payment(client, sample_product):
         "insured_id_no": "110101199505052345",
         "insured_age": 30,
     }).json()
-    policy = client.post("/api/policies", json={"underwriting_id": uw["id"]}).json()
+
     payment = client.post("/api/payments/create", json={
-        "policy_id": policy["id"],
+        "underwriting_id": uw["id"],
         "callback_url": "http://example.com/callback",
     }).json()
-
     order_no = payment["payment_url"].split("/")[-1]
 
-    resp = client.post(f"/api/payments/callback", json={
+    resp = client.post("/api/payments/callback", json={
         "order_no": order_no,
         "status": "success",
     })
@@ -53,20 +51,20 @@ def test_get_payment(client, sample_product):
         "insured_id_no": "110101199505052345",
         "insured_age": 30,
     }).json()
-    policy = client.post("/api/policies", json={"underwriting_id": uw["id"]}).json()
+
     client.post("/api/payments/create", json={
-        "policy_id": policy["id"],
+        "underwriting_id": uw["id"],
         "callback_url": "http://example.com/callback",
     })
 
     resp = client.get("/api/payments/1")
     assert resp.status_code == 200
-    assert resp.json()["policy_id"] == policy["id"]
+    assert resp.json()["underwriting_id"] == uw["id"]
 
 
-def test_payment_nonexistent_policy(client):
+def test_payment_nonexistent_underwriting(client):
     resp = client.post("/api/payments/create", json={
-        "policy_id": 999,
+        "underwriting_id": 999,
         "callback_url": "http://example.com/callback",
     })
     assert resp.status_code == 400
@@ -81,9 +79,9 @@ def test_payment_callback_failed_status(client, sample_product):
         "insured_id_no": "110101199505052345",
         "insured_age": 30,
     }).json()
-    policy = client.post("/api/policies", json={"underwriting_id": uw["id"]}).json()
+
     pay = client.post("/api/payments/create", json={
-        "policy_id": policy["id"],
+        "underwriting_id": uw["id"],
         "callback_url": "http://example.com/callback",
     }).json()
     order_no = pay["payment_url"].split("/")[-1]
@@ -113,9 +111,9 @@ def test_confirm_already_completed_payment(client, sample_product):
         "insured_id_no": "110101199505052345",
         "insured_age": 30,
     }).json()
-    policy = client.post("/api/policies", json={"underwriting_id": uw["id"]}).json()
+
     pay = client.post("/api/payments/create", json={
-        "policy_id": policy["id"],
+        "underwriting_id": uw["id"],
         "callback_url": "http://example.com/callback",
     }).json()
     order_no = pay["payment_url"].split("/")[-1]

@@ -4,7 +4,7 @@ import httpx
 
 from sqlalchemy.orm import Session
 
-from app.models import Policy, PaymentRecord
+from app.models import UnderwritingRecord, PaymentRecord
 
 logger = logging.getLogger(__name__)
 
@@ -19,32 +19,32 @@ def _generate_order_no() -> str:
     return f"ORD{now.strftime('%Y%m%d%H%M%S')}{now.microsecond % 10000:04d}"
 
 
-def create_payment_order(db: Session, policy_id: int, callback_url: str) -> PaymentRecord:
-    policy = db.query(Policy).filter(Policy.id == policy_id).first()
-    if not policy:
-        raise PaymentError("保单不存在")
-    if policy.status != "active":
-        raise PaymentError("保单状态异常，无法支付")
+def create_payment_order(db: Session, underwriting_id: int, callback_url: str) -> PaymentRecord:
+    record = db.query(UnderwritingRecord).filter(UnderwritingRecord.id == underwriting_id).first()
+    if not record:
+        raise PaymentError("核保单不存在")
+    if record.status != "approved":
+        raise PaymentError("核保单状态异常，无法支付")
 
     existing = (
         db.query(PaymentRecord)
-        .filter(PaymentRecord.policy_id == policy_id, PaymentRecord.status == "pending")
+        .filter(PaymentRecord.underwriting_id == underwriting_id, PaymentRecord.status == "pending")
         .first()
     )
     if existing:
         return existing
 
     order_no = _generate_order_no()
-    record = PaymentRecord(
-        policy_id=policy_id,
+    pmt = PaymentRecord(
+        underwriting_id=underwriting_id,
         order_no=order_no,
-        amount=policy.product.premium,
+        amount=record.product.premium,
         callback_url=callback_url,
     )
-    db.add(record)
+    db.add(pmt)
     db.commit()
-    db.refresh(record)
-    return record
+    db.refresh(pmt)
+    return pmt
 
 
 def complete_payment(db: Session, order_no: str) -> PaymentRecord:
@@ -71,7 +71,7 @@ def send_payment_callback(record: PaymentRecord) -> None:
     try:
         payload = {
             "order_no": record.order_no,
-            "policy_id": record.policy_id,
+            "underwriting_id": record.underwriting_id,
             "amount": str(record.amount),
             "status": "success",
             "paid_at": record.paid_at.isoformat() if record.paid_at else None,

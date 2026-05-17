@@ -40,6 +40,7 @@ class UnderwritingRecord(Base):
 
     product = relationship("Product", back_populates="underwriting_records")
     policy = relationship("Policy", uselist=False, back_populates="underwriting_record")
+    payment_records = relationship("PaymentRecord", back_populates="underwriting")
 
 
 class Policy(Base):
@@ -56,14 +57,13 @@ class Policy(Base):
 
     underwriting_record = relationship("UnderwritingRecord", back_populates="policy")
     product = relationship("Product", back_populates="policies")
-    payment_records = relationship("PaymentRecord", back_populates="policy")
 
 
 class PaymentRecord(Base):
     __tablename__ = "payment_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    policy_id = Column(Integer, ForeignKey("policies.id"), nullable=False)
+    underwriting_id = Column(Integer, ForeignKey("underwriting_records.id"), nullable=False)
     order_no = Column(String(50), unique=True, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     status = Column(SAEnum("pending", "success", "failed", name="payment_status"), default="pending")
@@ -71,4 +71,4 @@ class PaymentRecord(Base):
     paid_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    policy = relationship("Policy", back_populates="payment_records")
+    underwriting = relationship("UnderwritingRecord", back_populates="payment_records")

@@ -69,7 +69,7 @@ class PolicyListResponse(BaseModel):
 
 # --- Payment ---
 class PaymentCreate(BaseModel):
-    policy_id: int
+    underwriting_id: int
     callback_url: str = Field(..., max_length=500)
 
 
@@ -84,7 +84,7 @@ class PaymentCallback(BaseModel):
 
 class PaymentResponse(BaseModel):
     id: int
-    policy_id: int
+    underwriting_id: int
     order_no: str
     amount: Decimal
     status: str

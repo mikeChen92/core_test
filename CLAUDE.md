@@ -19,6 +19,15 @@ pytest tests/test_underwriting.py -v
 
 # 运行单个测试用例
 pytest tests/test_underwriting.py::test_submit_underwriting_success -v
+
+# 运行测试并生成 JUnit XML 报告
+pytest -v --junitxml=test-report.xml
+
+# 运行测试并生成 Markdown 详细报告（含请求/响应详情）
+pytest -v --md-report
+
+# 运行测试并同时生成 XML + Markdown 报告
+pytest -v --junitxml=test-report.xml --md-report=test-report.md
 ```
 
 ## 技术栈

@@ -2,7 +2,7 @@ import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models import UnderwritingRecord, Policy
+from app.models import UnderwritingRecord, Policy, PaymentRecord
 
 
 class PolicyError(Exception):
@@ -27,6 +27,17 @@ def issue_policy(db: Session, underwriting_id: int) -> Policy:
         raise PolicyError("核保记录不存在")
     if record.status != "approved":
         raise PolicyError(f"核保状态为 {record.status}，无法出单")
+
+    paid = (
+        db.query(PaymentRecord)
+        .filter(
+            PaymentRecord.underwriting_id == underwriting_id,
+            PaymentRecord.status == "success",
+        )
+        .first()
+    )
+    if not paid:
+        raise PolicyError("核保单尚未支付，无法出单")
 
     existing = db.query(Policy).filter(Policy.underwriting_id == underwriting_id).first()
     if existing:

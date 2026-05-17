@@ -229,9 +229,11 @@ GET /api/underwriting/{underwriting_id}
 
 ## 3. 承保模块
 
-### 3.1 生成保单
+### 3.1 生成保单（承保）
 
-核保通过后，生成保单。同一核保记录只能出单一次。
+核保单支付成功后，前端调用此接口完成承保。系统会先校验该核保单是否已支付成功，通过后生成保单。同一核保记录只能出单一次。
+
+**前置条件：** 该核保记录已通过审批且支付成功
 
 **保单号格式：** `P{YYYYMMDD}{6位序列号}`
 
@@ -243,7 +245,7 @@ POST /api/policies
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| underwriting_id | int | 核保记录 ID（须为 approved 状态） |
+| underwriting_id | int | 核保记录 ID（须为 approved 状态且已支付） |
 
 ```json
 {
@@ -272,7 +274,7 @@ POST /api/policies
 {
   "detail": {
     "code": "POLICY_ERROR",
-    "message": "核保状态为 rejected，无法出单"
+    "message": "核保单尚未支付，无法出单"
   }
 }
 ```
@@ -331,7 +333,7 @@ GET /api/policies/{policy_id}
 
 ### 4.1 创建支付订单
 
-生成支付订单并返回收银台链接。同一保单的待支付订单不会重复创建。
+核保通过后，前端用核保单 ID 创建支付订单，系统返回收银台链接。同一核保单的待支付订单不会重复创建。
 
 ```
 POST /api/payments/create
@@ -341,12 +343,12 @@ POST /api/payments/create
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| policy_id | int | 保单 ID |
+| underwriting_id | int | 核保单 ID |
 | callback_url | string | 支付成功后前端回调地址 |
 
 ```json
 {
-  "policy_id": 1,
+  "underwriting_id": 1,
   "callback_url": "https://frontend.example.com/payment/callback"
 }
 ```
@@ -367,7 +369,7 @@ POST /api/payments/create
 {
   "detail": {
     "code": "PAYMENT_ERROR",
-    "message": "保单不存在"
+    "message": "核保单不存在"
   }
 }
 ```
@@ -401,7 +403,7 @@ POST /api/payments/callback
 ```json
 {
   "id": 1,
-  "policy_id": 1,
+  "underwriting_id": 1,
   "order_no": "ORD202605170000000001",
   "amount": "100.00",
   "status": "success",
@@ -424,7 +426,7 @@ GET /api/payments/{payment_id}
 ```json
 {
   "id": 1,
-  "policy_id": 1,
+  "underwriting_id": 1,
   "order_no": "ORD202605170000000001",
   "amount": "100.00",
   "status": "success",
@@ -475,7 +477,7 @@ POST /payment/{order_no}/confirm
 ```json
 {
   "order_no": "ORD202605170000000001",
-  "policy_id": 1,
+  "underwriting_id": 1,
   "amount": "100.00",
   "status": "success",
   "paid_at": "2026-05-17T00:00:00"
@@ -534,9 +536,9 @@ GET /health
 ## 附录：业务流程图
 
 ```
-产品抓取 → 产品列表 → 核保申请 → 核保通过 → 生成保单 → 创建支付 → 收银台支付 → 回调通知
-                                                                                      ↓
-                                                                        前端系统接收通知
+产品抓取 → 产品列表 → 核保申请 → 核保通过 → 创建支付 → 收银台支付 → 回调通知前端
+                                                                          ↓
+                                                                  前端发起承保 → 校验支付 → 生成保单
 ```
 
 完整链路示意：
@@ -554,13 +556,9 @@ sequenceDiagram
 
     前端->>核心系统: POST /api/underwriting
     核心系统->>核心系统: 风险评估（年龄/重复拒保）
-    核心系统-->>前端: 核保结果
+    核心系统-->>前端: 核保结果（核保单）
 
-    前端->>核心系统: POST /api/policies
-    核心系统->>核心系统: 生成保单
-    核心系统-->>前端: 保单信息
-
-    前端->>核心系统: POST /api/payments/create
+    前端->>核心系统: POST /api/payments/create（传 underwriting_id）
     核心系统-->>前端: 收银台链接
 
     前端->>核心系统: 跳转收银台 /payment/{order_no}
@@ -569,5 +567,10 @@ sequenceDiagram
     用户->>核心系统: 点击确认支付
     核心系统->>核心系统: 标记支付成功
     核心系统-->>前端: 重定向到 callback_url
-    核心系统->>前端: 异步回调通知
+    核心系统->>前端: 异步回调通知（含 underwriting_id）
+
+    前端->>核心系统: POST /api/policies（传 underwriting_id）
+    核心系统->>核心系统: 校验核保单已支付
+    核心系统->>核心系统: 生成保单
+    核心系统-->>前端: 保单信息
 ```
